@@ -6,61 +6,61 @@ use App\Models\Employee;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 
 class EmployeeController extends Controller
 {
     public function index()
     {
-        $data = Employee::all();
-        if ($data->count() >= 1) {
+        $employees = Employee::all();
+
+        if ($employees->isEmpty()) {
             return response()->json([
-                'success' => true,
-                'message' => 'All Employee Retrieve Successfully',
-                'data' => $data
-            ], 200);
+                'success' => false,
+                'message' => 'No employees found.'
+            ], 404);
         }
 
         return response()->json([
-            'success' => false,
-            'message' => 'Employee not found'
-        ], 500);
+            'success' => true,
+            'message' => 'Employees retrieved successfully.',
+            'data' => $employees
+        ]);
     }
 
-
-    /* Only Admin can created */
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
             'employee_id' => 'required|unique:employees',
-            'name' => 'required',
-            'email' => 'required|email|unique:employees',
-            'dob' => 'required|date',
-            'doj' => 'required|date',
+            'name'        => 'required|string',
+            'email'       => 'required|email|unique:employees',
+            'dob'         => 'required|date',
+            'doj'         => 'required|date',
         ]);
 
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'validation error',
-                'error' => $validator->errors()
-            ], 412);
+                'message' => 'Validation failed.',
+                'errors'  => $validator->errors()
+            ], 422);
         }
 
-        $data = $validator->validate();
-        $employee = Employee::create($data);
+        try {
+            $employee = Employee::create($validator->validated());
 
-        if ($employee) {
             return response()->json([
                 'success' => true,
-                'message' => 'Employee created successfully',
-                'data' => $employee
+                'message' => 'Employee created successfully.',
+                'data'    => $employee
             ], 201);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to create employee.',
+                'error'   => $e->getMessage()
+            ], 500);
         }
-
-        return response()->json([
-            'success' => false,
-            'message' => 'Employee not created !'
-        ], 500);
     }
 
     public function show($id)
@@ -70,54 +70,64 @@ class EmployeeController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Employee retrieved successfully',
+                'message' => 'Employee retrieved successfully.',
                 'data'    => $employee
-            ], 200);
-        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            ]);
+        } catch (ModelNotFoundException $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Employee not found'
+                'message' => 'Employee not found.'
             ], 404);
         }
     }
 
-
     public function update(Request $request, $id)
     {
-        $employee = Employee::findOrFail($id); // First fetch the record
+        try {
+            $employee = Employee::findOrFail($id);
 
-        $validator = Validator::make($request->all(), [
-            'employee_id' => [
-                'required',
-                Rule::unique('employees')->ignore($employee->id),
-            ],
-            'name' => 'required',
-            'email' => [
-                'required',
-                'email',
-                Rule::unique('employees')->ignore($employee->id),
-            ],
-            'dob' => 'required|date',
-            'doj' => 'required|date',
-        ]);
+            $validator = Validator::make($request->all(), [
+                'employee_id' => [
+                    'required',
+                    Rule::unique('employees')->ignore($employee->id),
+                ],
+                'name'  => 'required|string',
+                'email' => [
+                    'required',
+                    'email',
+                    Rule::unique('employees')->ignore($employee->id),
+                ],
+                'dob'   => 'required|date',
+                'doj'   => 'required|date',
+            ]);
 
-        if ($validator->fails()) {
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Validation failed.',
+                    'errors'  => $validator->errors()
+                ], 422);
+            }
+
+            $employee->update($validator->validated());
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Employee updated successfully.',
+                'data'    => $employee
+            ]);
+        } catch (ModelNotFoundException $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Validation error',
-                'errors' => $validator->errors()
-            ], 412);
+                'message' => 'Employee not found.'
+            ], 404);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error updating employee.',
+                'error'   => $e->getMessage()
+            ], 500);
         }
-
-        $data = $validator->validated();
-
-        $employee->update($data);
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Employee updated successfully',
-            'data' => $employee
-        ], 200);
     }
 
     public function destroy($id)
@@ -128,18 +138,18 @@ class EmployeeController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Employee deleted successfully'
-            ], 200);
-        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+                'message' => 'Employee deleted successfully.'
+            ]);
+        } catch (ModelNotFoundException $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Employee not found'
+                'message' => 'Employee not found.'
             ], 404);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Error deleting employee',
-                'error' => $e->getMessage()
+                'message' => 'Error deleting employee.',
+                'error'   => $e->getMessage()
             ], 500);
         }
     }
